@@ -39,7 +39,7 @@ import (
 	//	"bytes" //un-comment for helpers like bytes.equal
 	"encoding/binary"
 	"errors"
-	//	"fmt" //un-comment if you want to do any debug printing.
+	"fmt" //un-comment if you want to do any debug printing.
 )
 
 // Labels for key derivation
@@ -151,12 +151,20 @@ func (c *Chatter) InitiateHandshake(partnerIdentity *PublicKey) (*PublicKey, err
 
 	c.Sessions[*partnerIdentity] = &Session{
 		CachedReceiveKeys: make(map[int]*SymmetricKey),
-		// TODO: your code here
+		MyDHRatchet: GenerateKeyPair(),
+	//	PartnerDHRatchet  *PublicKey
+	//	RootChain         *SymmetricKey
+	//	SendChain         *SymmetricKey
+	//	ReceiveChain      *SymmetricKey
+		SendCounter: 0,
+		LastUpdate: 0,
+		ReceiveCounter:0,
 	}
-
+	fmt.Println("sending public key")
+	return &c.Sessions[*partnerIdentity].MyDHRatchet.PublicKey, nil
 	// TODO: your code here
 
-	return nil, errors.New("Not implemented")
+	return nil, errors.New("InitiateHandshake not implemented")
 }
 
 // ReturnHandshake prepares the second message sent in a handshake, containing
@@ -170,12 +178,21 @@ func (c *Chatter) ReturnHandshake(partnerIdentity,
 
 	c.Sessions[*partnerIdentity] = &Session{
 		CachedReceiveKeys: make(map[int]*SymmetricKey),
-		// TODO: your code here
+		MyDHRatchet: GenerateKeyPair(),
+		PartnerDHRatchet: partnerEphemeral,
+	//	RootChain         *SymmetricKey
+	//	SendChain         *SymmetricKey
+	//	ReceiveChain      *SymmetricKey
+		SendCounter: 0,
+		LastUpdate: 0,
+		ReceiveCounter:0,
 	}
-
+	
+	fmt.Println("sending public key")
+	return &c.Sessions[*partnerIdentity].MyDHRatchet.PublicKey, &c.Sessions[*partnerIdentity].CachedReceiveKeys, nil
 	// TODO: your code here
 
-	return nil, nil, errors.New("Not implemented")
+	return nil, nil, errors.New("ReturnHandshake not implemented")
 }
 
 // FinalizeHandshake lets the initiator receive the responder's ephemeral key
@@ -189,7 +206,7 @@ func (c *Chatter) FinalizeHandshake(partnerIdentity,
 
 	// TODO: your code here
 
-	return nil, errors.New("Not implemented")
+	return nil, errors.New("FinalizeHandshake not implemented")
 }
 
 // SendMessage is used to send the given plaintext string as a message.
@@ -209,7 +226,7 @@ func (c *Chatter) SendMessage(partnerIdentity *PublicKey,
 
 	// TODO: your code here
 
-	return message, errors.New("Not implemented")
+	return message, errors.New("SendMessage not implemented")
 }
 
 // ReceiveMessage is used to receive the given message and return the correct
@@ -223,5 +240,5 @@ func (c *Chatter) ReceiveMessage(message *Message) (string, error) {
 
 	// TODO: your code here
 
-	return "", errors.New("Not implemented")
+	return "", errors.New("RecieveMessage not implemented")
 }
