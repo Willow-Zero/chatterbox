@@ -180,16 +180,17 @@ func (c *Chatter) ReturnHandshake(partnerIdentity,
 		CachedReceiveKeys: make(map[int]*SymmetricKey),
 		MyDHRatchet: GenerateKeyPair(),
 		PartnerDHRatchet: partnerEphemeral,
-	//	RootChain         *SymmetricKey
+	//	RootChain: DHCombine(partnerEphemeral,&c.Sessions[*partnerIdentity].MyDHRatchet.PrivateKey),
 	//	SendChain         *SymmetricKey
 	//	ReceiveChain      *SymmetricKey
 		SendCounter: 0,
 		LastUpdate: 0,
 		ReceiveCounter:0,
 	}
-	
+	c.Sessions[*partnerIdentity].RootChain= DHCombine(partnerEphemeral,&(c.Sessions[*partnerIdentity].MyDHRatchet.PrivateKey))
+	//not sure why but this wasnt cooperating inside the upper st8ment, i think smth to do with go's expression evalu8ion - it tries to reference a value its setting in the same assertion. id really like to put it up there 8ecause it would look far 8etter and it is slightly infuri8ing me but if i do that it gives me a nice little segfault error and we cant have that ::::/
 	fmt.Println("sending public key")
-	return &c.Sessions[*partnerIdentity].MyDHRatchet.PublicKey, &c.Sessions[*partnerIdentity].CachedReceiveKeys, nil
+	return &c.Sessions[*partnerIdentity].MyDHRatchet.PublicKey, c.Sessions[*partnerIdentity].RootChain, nil
 	// TODO: your code here
 
 	return nil, nil, errors.New("ReturnHandshake not implemented")
