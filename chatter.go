@@ -204,8 +204,10 @@ func (c *Chatter) FinalizeHandshake(partnerIdentity,
 	if _, exists := c.Sessions[*partnerIdentity]; !exists {
 		return nil, errors.New("Can't finalize session, not yet open")
 	}
-
+	c.Sessions[*partnerIdentity].PartnerDHRatchet = partnerEphemeral
+	c.Sessions[*partnerIdentity].RootChain= DHCombine(partnerEphemeral,(&c.Sessions[*partnerIdentity].MyDHRatchet.PrivateKey))
 	// TODO: your code here
+	return  c.Sessions[*partnerIdentity].RootChain, nil
 
 	return nil, errors.New("FinalizeHandshake not implemented")
 }
@@ -223,8 +225,16 @@ func (c *Chatter) SendMessage(partnerIdentity *PublicKey,
 		Sender:   &c.Identity.PublicKey,
 		Receiver: partnerIdentity,
 		// TODO: your code here
-	}
+		// NextDHRatchet *PublicKey
+		// Counter       int
+		// LastUpdate    int
+		// Ciphertext    []byte
+		// IV            []byte
 
+	}
+	//derive and ratchet keys 
+	//encrypt and insert cyphertext
+	
 	// TODO: your code here
 
 	return message, errors.New("SendMessage not implemented")
@@ -238,8 +248,9 @@ func (c *Chatter) ReceiveMessage(message *Message) (string, error) {
 	if _, exists := c.Sessions[*message.Sender]; !exists {
 		return "", errors.New("Can't receive message from partner with no open session")
 	}
-
-	// TODO: your code here
+	// derive key if underived, derive ahead if necessary
+	// ratcheting logic
+	// decrypt and return plaintext
 
 	return "", errors.New("RecieveMessage not implemented")
 }
