@@ -195,7 +195,6 @@ func CheckReceive(t *testing.T,
 	receiver *Chatter,
 	message *Message,
 	intendedPlaintext string) error {
-
 	if VERBOSE {
 		fmt.Printf("%s receiving message from %s, counter: %d, next DH share: %s, ciphertext: %0X\n",
 			PrintHandle(message.Receiver),
