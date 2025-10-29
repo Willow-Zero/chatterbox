@@ -91,7 +91,6 @@ type Message struct {
 	Receiver      *PublicKey
 	NextDHRatchet *PublicKey
 	Counter       int
-	DEBUGKey      *SymmetricKey
 	LastUpdate    int
 	Ciphertext    []byte
 	IV            []byte
@@ -291,7 +290,6 @@ func (c *Chatter) SendMessage(partnerIdentity *PublicKey,
 			Counter:       session.SendCounter,
 			LastUpdate:    session.LastUpdate,
 			IV:            iv,
-			DEBUGKey:	   messageKey,
 		}
 		if DEBUG{
 			//fmt.Printf("SEND:    %x\n         %x\n",messageKey.String()[100:],session.RootChain.String()[100:])
@@ -300,7 +298,7 @@ func (c *Chatter) SendMessage(partnerIdentity *PublicKey,
 		additionalData := message.EncodeAdditionalData()
 		ciphertext := messageKey.AuthenticatedEncrypt(plaintext, additionalData, iv)
 		message.Ciphertext = ciphertext
-	
+		messageKey.Zeroize()
 		return message, nil
 	return message, errors.New("SendMessage not implemented")
 }
@@ -313,27 +311,26 @@ func (c *Chatter) ReceiveMessage(message *Message) (string, error) {
     if !exists {
         return "", errors.New("Can't receive message from partner with no open session")
     }
-	//startingRootKey := session.RootChain.Duplicate()
-	//startingChain := session.SendChain.Duplicate()
-
+	newroot := session.RootChain
+	newRecChain := session.ReceiveChain
 
 
     // handle dh ratchet if present (this can on ly  be done for on time messages for Reasons)
     if message.Counter == message.LastUpdate && message.Counter == session.ReceiveCounter+1{
 		session.UpdateCounter++
-		session.RootChain = session.RootChain.DeriveKey(ROOT_LABEL)
+		newroot = session.RootChain.DeriveKey(ROOT_LABEL)
 		newDHRKey := message.NextDHRatchet
 		newDHRSecret := DHCombine(newDHRKey,&session.MyDHRatchet.PrivateKey)
 		session.PartnerDHRatchet = newDHRKey.Duplicate()
-		session.RootChain = CombineKeys(session.RootChain,newDHRSecret)
-		session.ReceiveChain = session.RootChain.DeriveKey(CHAIN_LABEL)
-		session.RootChain = session.RootChain.DeriveKey(ROOT_LABEL)
+		newroot = CombineKeys(newroot,newDHRSecret)
+		newRecChain = newroot.DeriveKey(CHAIN_LABEL)
+		newroot = newroot.DeriveKey(ROOT_LABEL)
 		//fmt.Printf("\nRECIEVING::: Root Chain: %x, Send Chain: %x, Recieve Chain: %x",session.RootChain,session.SendChain,session.ReceiveChain)
 
     }
 
-    if session.ReceiveChain == nil {
-        session.ReceiveChain = session.RootChain.DeriveKey(CHAIN_LABEL)
+    if newRecChain == nil {
+        newRecChain = newroot.DeriveKey(CHAIN_LABEL)
         // fmt.Printf("DE8UG Receive: First message - initialized receive chain: %x\n", session.ReceiveChain.Key[:8])
     }
 
@@ -348,17 +345,17 @@ func (c *Chatter) ReceiveMessage(message *Message) (string, error) {
 				//de8ug with same procedure 
 				if DEBUG{fmt.Printf("DE8UG: RATCHET ON EARLY MSG\n")}
 				session.UpdateCounter++
-				session.RootChain = session.RootChain.DeriveKey(ROOT_LABEL)
+				newroot = newroot.DeriveKey(ROOT_LABEL)
 				newDHRKey := message.NextDHRatchet
 				newDHRSecret := DHCombine(newDHRKey,&session.MyDHRatchet.PrivateKey)
 				session.PartnerDHRatchet = newDHRKey.Duplicate()
-				session.RootChain = CombineKeys(session.RootChain,newDHRSecret)
-				session.ReceiveChain = session.RootChain.DeriveKey(CHAIN_LABEL)
-				session.RootChain = session.RootChain.DeriveKey(ROOT_LABEL)
+				newroot = CombineKeys(newroot,newDHRSecret)
+				newRecChain = newroot.DeriveKey(CHAIN_LABEL)
+				newroot = newroot.DeriveKey(ROOT_LABEL)
 			}
-			saveKey := session.ReceiveChain.DeriveKey(KEY_LABEL)
+			saveKey := newRecChain.DeriveKey(KEY_LABEL)
 			session.CachedReceiveKeys[session.ReceiveCounter] = saveKey.Duplicate()
-			session.ReceiveChain = session.ReceiveChain.DeriveKey(CHAIN_LABEL)
+			newRecChain = newRecChain.DeriveKey(CHAIN_LABEL)
 			if DEBUG{fmt.Printf("saved key %x at position %d\n",session.CachedReceiveKeys[session.ReceiveCounter].String()[100:],session.ReceiveCounter)}
 			
 			//fmt.Printf("DE8UG: keys generated up to %d\n",session.ReceiveCounter)
@@ -369,28 +366,34 @@ func (c *Chatter) ReceiveMessage(message *Message) (string, error) {
 			//de8ug with same procedure 
 			if DEBUG{fmt.Printf("DE8UG: RATCHET ON EARLY MSG\n")}
 			session.UpdateCounter++
-			session.RootChain = session.RootChain.DeriveKey(ROOT_LABEL)
+			newroot = newroot.DeriveKey(ROOT_LABEL)
 			newDHRKey := message.NextDHRatchet
 			newDHRSecret := DHCombine(newDHRKey,&session.MyDHRatchet.PrivateKey)
 			session.PartnerDHRatchet = newDHRKey.Duplicate()
-			session.RootChain = CombineKeys(session.RootChain,newDHRSecret)
-			session.ReceiveChain = session.RootChain.DeriveKey(CHAIN_LABEL)
-			session.RootChain = session.RootChain.DeriveKey(ROOT_LABEL)
+			newroot = CombineKeys(newroot,newDHRSecret)
+			newRecChain = newroot.DeriveKey(CHAIN_LABEL)
+			newroot = newroot.DeriveKey(ROOT_LABEL)
 			}
-		messageKey := session.ReceiveChain.DeriveKey(KEY_LABEL)
+		messageKey := newRecChain.DeriveKey(KEY_LABEL)
 		// upd8 receive chain
-		session.ReceiveChain = session.ReceiveChain.DeriveKey(CHAIN_LABEL)
+		newRecChain = newRecChain.DeriveKey(CHAIN_LABEL)
 		// fmt.Printf("DEBUG Receive: Derived message key: %x\n", messageKey.Key[:8])
 		if DEBUG{
 			//fmt.Printf("RECIEVE: %x\n         %x\n",messageKey.String()[100:],session.RootChain.String()[100:])
-			fmt.Printf("DE8UG: Attempting decode with key %x on early message %d\n               expected key:      %x\n",messageKey.String()[100:],message.Counter,message.DEBUGKey.String()[100:])
+			fmt.Printf("DE8UG: Attempting decode with key %x on early message %d\n",messageKey.String()[100:],message.Counter)
 		}// decrypt
 		additionalData := message.EncodeAdditionalData()
 		plaintext, err := messageKey.AuthenticatedDecrypt(message.Ciphertext, additionalData, message.IV)
 		if err != nil {
+			newroot.Zeroize()
+			newRecChain.Zeroize()
 			return "", fmt.Errorf("authentication failed for eARLY message: %v", err)
 		}
 		if DEBUG{fmt.Println("decoded")}
+		session.RootChain = newroot.Duplicate()
+		session.ReceiveChain = newRecChain.Duplicate()
+		newroot.Zeroize()
+		newRecChain.Zeroize()
 		return plaintext, nil
 	} else if message.Counter-1 < session.ReceiveCounter{	
 		if DEBUG{
@@ -400,38 +403,52 @@ func (c *Chatter) ReceiveMessage(message *Message) (string, error) {
 		additionalData := message.EncodeAdditionalData()	
 		decodeKey := session.CachedReceiveKeys[message.Counter]
 		if decodeKey == nil{
+			newroot.Zeroize()
+			newRecChain.Zeroize()
 			return "", fmt.Errorf("Duplicate or Invalid Message Counter %d in epoch %d",message.Counter,message.LastUpdate)
 		}
 		plaintext, err := decodeKey.AuthenticatedDecrypt(message.Ciphertext, additionalData, message.IV)
 		session.CachedReceiveKeys[message.Counter].Zeroize()
 		decodeKey.Zeroize()
 		if err != nil {
+			newroot.Zeroize()
+			newRecChain.Zeroize()
 			return "", fmt.Errorf("authentication failed for late message: %v", err)
 		}
 		if DEBUG{fmt.Println("decoded")}
+		session.RootChain = newroot.Duplicate()
+		session.ReceiveChain = newRecChain.Duplicate()
+		newroot.Zeroize()
+		newRecChain.Zeroize()
 		return plaintext, nil
 	} else if (message.Counter-1 == session.ReceiveCounter){
-    	messageKey := session.ReceiveChain.DeriveKey(KEY_LABEL)
+    	messageKey := newRecChain.DeriveKey(KEY_LABEL)
     	if DEBUG{fmt.Printf("DE8UG: %d recieving on-time message\n",session.IdentityFlag)}
 		// upd8 receive chain
-		session.ReceiveChain = session.ReceiveChain.DeriveKey(CHAIN_LABEL)
+		newRecChain = newRecChain.DeriveKey(CHAIN_LABEL)
 		
 		session.ReceiveCounter++
 
 		// fmt.Printf("DEBUG Receive: Derived message key: %x\n", messageKey.Key[:8])
 		if DEBUG{
 		//	fmt.Printf("RECIEVE: %x\n         %x\n",messageKey.String()[100:],session.RootChain.String()[100:])
-			fmt.Printf("DE8UG: %d attempting decode with key %x on timed message %d\n                 expected key:      %x\n",session.IdentityFlag,messageKey.String()[100:],message.Counter,message.DEBUGKey.String()[100:])	
+			fmt.Printf("DE8UG: %d attempting decode with key %x on timed message %d\n",session.IdentityFlag,messageKey.String()[100:],message.Counter)	
 		}// decrypt
 		additionalData := message.EncodeAdditionalData()
 		plaintext, err := messageKey.AuthenticatedDecrypt(message.Ciphertext, additionalData, message.IV)
 		if err != nil {
 			//session.RootChain = startingRootKey.Duplicate()
 			//session.ReceiveChain = startingChain.Duplicate()
+			newroot.Zeroize()
+			newRecChain.Zeroize()
 			return "", fmt.Errorf("authentication failed for on time message: %v", err)
 		}
 
 		if DEBUG{fmt.Println("decoded")}
+		session.RootChain = newroot.Duplicate()
+		session.ReceiveChain = newRecChain.Duplicate()
+		newroot.Zeroize()
+		newRecChain.Zeroize()
 		return plaintext, nil
 	}
 	return "", errors.New("FAILURE TO DECODE. UNMANAGED EDGE C8SE")
